@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+#Step
+#1) Use Warp Perspective to Crop the Conveyor Belt Section
+#2) Detect Black Objects and Contour
 #4 corners of the conveyor belt
 corners = np.zeros((4,2),np.int)
 counter = 0
@@ -31,11 +34,15 @@ while True:
     #When 4 corners are selected
     if counter == 4:
         w,h = 250,350 #Can be modified for the setting
+
         pts1 = np.float32([corners[0],corners[1],corners[2],corners[3]])
         #Make sure to follow the pattern
         pts2 = np.float32([[0,0],[w,0],[w,h],[0,h]])
+
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
+
         belt = cv2.warpPerspective(frame,mtrx,(w,h))
+
         cv2.imshow("Cropped Belt",belt)
 
     #Press q on the keyboard to quit
