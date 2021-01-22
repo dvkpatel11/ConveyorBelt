@@ -16,7 +16,7 @@ def empty(var):
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
-cv2.createTrackbar("Min Area","CountourSize",10000,30000,empty) #these values can be modified
+cv2.createTrackbar("Min Area","CountourSize",500,30000,empty) #these values can be modified
 
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
@@ -53,7 +53,7 @@ cap.set(10,100)
 
 #Color Bars
 cv2.namedWindow("ColorBars")
-cv2.resizeWindow("ColorBars",320,120)
+cv2.resizeWindow("ColorBars",640,240)
 #Black has an HSV value of 0-255, 0-255, 0
 cv2.createTrackbar("Hue Min","ColorBars",0,179,empty)
 cv2.createTrackbar("Hue Max","ColorBars",179,179,empty)
