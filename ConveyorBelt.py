@@ -31,6 +31,11 @@ def mousePoints(event,x,y,flags,params):
 
 def getContours(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cv2.drawContours(imgContoured,contours,-1,(0,255,0),3)
+    #maxContour = max(contours,key=cv2.contourArea)
+    # x, y, w, h = cv2.boundingRect(maxContour)
+    # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
+    # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
     for cnt in contours:
         cntArea = cv2.contourArea(cnt)
         if cntArea>=minBlackPlasticCntSize:
@@ -42,6 +47,7 @@ def getContours(imgCanny, imgContoured):
             cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
             #Center of the detected plastic
             cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+
 
 
 #Video Capture
