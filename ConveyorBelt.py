@@ -28,26 +28,36 @@ def mousePoints(event,x,y,flags,params):
         counter = counter + 1
         #print(corners)
 
+cropImages = []
+cropNum = 0
+
 def getContours(imgCanny, imgContoured):
+    global cropImages
+    global cropNum
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),3)
     #maxContour = max(contours,key=cv2.contourArea)
     # x, y, w, h = cv2.boundingRect(maxContour)
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
     # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
-    for cnt in contours:
-        cntArea = cv2.contourArea(cnt)
-        if cntArea>=minBlackPlasticCntSize:
-            cv2.drawContours(imgContoured,cnt,-1,(0,255,0),3)
-            cntPerimeter = cv2.arcLength(cnt,True)
-            approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-            x,y,w,h = cv2.boundingRect(approx)
-            #bounding the detected plastic
-            cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
-            #Center of the detected plastic
-            cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-
-
+    if len(contours)>0: #if there are contours detected
+        for cnt in contours:
+            cntArea = cv2.contourArea(cnt)
+            if cntArea>=minBlackPlasticCntSize:
+                #cv2.drawContours(imgContoured,cnt,-1,(0,255,0),3)
+                #approximate the bounding box
+                cntPerimeter = cv2.arcLength(cnt,True)
+                approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
+                x,y,w,h = cv2.boundingRect(approx)
+                #bounding the detected plastic
+                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                #Crop the images
+                if cropNum<5: #Because the number of cropped images is infinite
+                    cropimg = imgContoured[y:(y+h),x:(x+w)]
+                    cropImages.append(cropimg)
+                    cropNum = cropNum+1
+                #Center of the detected plastic
+                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
 
 #Video Capture
 cap = cv2.VideoCapture(0)
@@ -65,7 +75,7 @@ cv2.createTrackbar("Hue Max","ColorBars",179,179,empty)
 cv2.createTrackbar("Sat Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Sat Max","ColorBars",255,255,empty)
 cv2.createTrackbar("Val Min","ColorBars",0,255,empty)
-cv2.createTrackbar("Val Max","ColorBars",90,255,empty) #Pick 90 as maximum value for black color
+cv2.createTrackbar("Val Max","ColorBars",50,255,empty) #Pick 90 as maximum value for black color
 
 #Read the Video Capture
 while True:
@@ -119,12 +129,18 @@ while True:
         kernel = np.ones((5, 5))
         beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
         getContours(beltDetectDilate,beltContoured)
-
+        #Display cropped images
+        for i in range(cropNum):
+            crop_w = int(cropImages[i].shape[1]*1)
+            crop_h = int(cropImages[i].shape[0]*1)
+            crop_dim = (crop_w,crop_h)
+            cropResized = cv2.resize(cropImages[i],crop_dim,interpolation=cv2.INTER_AREA)
+            cv2.imshow("Crop" + str(i),cropResized)
         # cv2.imshow("Gray",beltDetectGray)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
 
-        cv2.imshow("Black Plastics Detected", blackPlasticDetect)
+        #cv2.imshow("Black Plastics Detected", blackPlasticDetect)
         cv2.imshow("Black Plastics Contoured", beltContoured)
 
 
