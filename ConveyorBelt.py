@@ -113,10 +113,13 @@ while True:
         beltContoured = belt.copy()
 
         #Use Canny Edge Detection on the color thresholded belt
-        beltDetectGray = cv2.cvtColor(blackPlasticDetect,cv2.COLOR_BGR2GRAY)
-        beltDetectBlur = cv2.GaussianBlur(beltDetectGray,(7,7),1)
-        beltDetectCanny = cv2.Canny(beltDetectBlur,50,50)
-        getContours(beltDetectCanny,beltContoured)
+
+        beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1)
+        beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY)
+        beltDetectCanny = cv2.Canny(beltDetectGray,50,50)
+        kernel = np.ones((5, 5))
+        beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
+        getContours(beltDetectDilate,beltContoured)
 
         # cv2.imshow("Gray",beltDetectGray)
         # cv2.imshow("Blur",beltDetectBlur)
@@ -138,5 +141,3 @@ while True:
 #Optional
 # cap.release()
 # cv2.destroyWindow()
-
-
