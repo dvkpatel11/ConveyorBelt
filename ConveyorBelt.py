@@ -17,7 +17,6 @@ def empty(var):
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
 cv2.createTrackbar("Min Area","CountourSize",500,30000,empty) #these values can be modified
-
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
 #Register corners of the conveyor belt
@@ -31,7 +30,7 @@ def mousePoints(event,x,y,flags,params):
 
 def getContours(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    cv2.drawContours(imgContoured,contours,-1,(0,255,0),3)
+    #cv2.drawContours(imgContoured,contours,-1,(0,255,0),3)
     #maxContour = max(contours,key=cv2.contourArea)
     # x, y, w, h = cv2.boundingRect(maxContour)
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
@@ -89,7 +88,7 @@ while True:
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
-        cv2.imshow("Cropped Belt",belt)
+        #cv2.imshow("Cropped Belt",belt)
 
         #Detect Black Objects on the Conveyor Belt
         beltHSV = cv2.cvtColor(belt,cv2.COLOR_BGR2HSV) #Convert the colorspace to HSV
