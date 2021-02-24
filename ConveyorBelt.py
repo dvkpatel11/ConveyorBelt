@@ -35,10 +35,10 @@ def getContours(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if len(contours)>0: #if there are contours detected
         for cnt in contours:
-            hull = cv2.convexHull(cnt)
-            cv2.drawContours(imgContoured, hull, -1, (255, 0, 0))
             cntArea = cv2.contourArea(cnt)
             if cntArea>=minBlackPlasticCntSize:
+                hull = cv2.convexHull(cnt)  # implement convex hull
+                cv2.drawContours(imgContoured, hull, -1, (255, 0, 0), 3)
                 #approximate the bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
@@ -108,7 +108,7 @@ while True:
         lower = np.array([h_min,s_min,v_min])
         upper = np.array([h_max,s_max,v_max])
         blackMask = cv2.inRange(beltHSV,lower,upper)
-        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask)
+        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask) #masked image
         #cv2.imshow("HSV", beltHSV)
         #cv2.imshow("Mask", blackMask)
 
@@ -117,11 +117,10 @@ while True:
 
         #Use Canny Edge Detection on the color thresholded belt
 
-        beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1)
-        #beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY)
-        #Try thresholding instead of converting to gray scale
-        ret, beltDetectGray = cv2.threshold(beltDetectBlur,10,255,cv2.THRESH_BINARY)
-        beltDetectCanny = cv2.Canny(beltDetectGray,50,50)
+        beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1) #blurred image
+        beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY) #convert to grayscale
+        ret, threshold = cv2.threshold(beltDetectBlur,10,255,cv2.THRESH_BINARY) #threshold grayscale image
+        beltDetectCanny = cv2.Canny(threshold,50,50)
         kernel = np.ones((5, 5))
         beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
         getContours(beltDetectDilate,beltContoured)
@@ -132,7 +131,7 @@ while True:
             crop_dim = (crop_w,crop_h)
             cropResized = cv2.resize(cropImages[i],crop_dim,interpolation=cv2.INTER_AREA)
             cv2.imshow("Crop" + str(i),cropResized)
-        cv2.imshow("Gray",beltDetectGray)
+        cv2.imshow("Threshold Belt",threshold)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
 
