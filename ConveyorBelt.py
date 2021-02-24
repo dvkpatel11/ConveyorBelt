@@ -3,17 +3,15 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-#Step
-#1) Use Warp Perspective to Crop the Conveyor Belt Section
-#2) Detect Black Objects and Contour 4 corner of the conveyor belt
-corners = np.zeros((4,2),np.int)
+#Use Warp Perspective to Crop the Conveyor Belt Section
+corners = np.zeros((4,2),np.int) #corners of the roi
 counter = 0
 
 #An empty function
 def empty(var):
     pass
 
-#Countour Area Track Bar
+#Minimum Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
 cv2.createTrackbar("Min Area","CountourSize",500,300000,empty) #these values can be modified
@@ -27,11 +25,12 @@ def mousePoints(event,x,y,flags,params):
         corners[counter] = x,y
         counter = counter + 1
         #print(corners)
+
 cropimg = []
-def getContours(imgCanny, imgContoured):
+def getContours(binaryImage, imgContoured):
     global cropimg
     cropimg = []
-    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours, hierarchy = cv2.findContours(binaryImage, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if len(contours)>0: #if there are contours detected
         for cnt in contours:
             cntArea = cv2.contourArea(cnt) #filter out noise by areas
@@ -43,7 +42,7 @@ def getContours(imgCanny, imgContoured):
                 print("The center of mass is " + str(cx)+" and " + str(cy))
                 #implement convex hull
                 hull = cv2.convexHull(cnt)
-                cv2.drawContours(imgContoured, hull, -1, (255, 0, 0), 3)
+                cv2.drawContours(imgContoured, hull, -1, (0, 0, 255), 3)
                 #approximate the bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
@@ -55,7 +54,19 @@ def getContours(imgCanny, imgContoured):
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
 
-
+def preprocess(image):
+    #Blurring
+    blur = cv2.GaussianBlur(image,(7,7),1)
+    #Grayscale
+    gray = cv2.cvtColor(blur,cv2.COLOR_BGR2GRAY)
+    #Thresholding
+    ret,threshold = cv2.threshold(gray,10,255,cv2.THRESH_BINARY)
+    #Canny Edge Detection
+    canny = cv2.Canny(threshold,50,50)
+    #Dilation & Erosion
+    kernel = np.ones((5, 5))
+    dilateImg = cv2.dilate(canny,kernel,iterations=1)
+    return dilateImg
 
 #Video Capture
 cap = cv2.VideoCapture(0)
@@ -85,12 +96,10 @@ while True:
     for i in range(0,4):
         cv2.circle(frame,(corners[i][0],corners[i][1]),3,(0,255,0),cv2.FILLED)
 
-    #When 4 corners are selected
+    #When 4 corners of roi are selected
     if counter == 4:
         pts1 = np.float32([corners[0],corners[1],corners[2],corners[3]])
-        #Make sure to follow the pattern
-        # beltwidth = 250
-        # belthheight = 350
+        #Make sure to follow the pattern (clock-wise)
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
@@ -107,7 +116,6 @@ while True:
         s_max = cv2.getTrackbarPos("Sat Max", "ColorBars")
         v_min = cv2.getTrackbarPos("Val Min", "ColorBars")
         v_max = cv2.getTrackbarPos("Val Max", "ColorBars")
-        # print(h_min,h_max,s_min,s_max,v_min,v_max)
         #Black Color Threshold
         lower = np.array([h_min,s_min,v_min])
         upper = np.array([h_max,s_max,v_max])
@@ -119,15 +127,7 @@ while True:
         #Copy the belt to be contoured
         beltContoured = belt.copy()
 
-        #Use Canny Edge Detection on the color thresholded belt
-
-        beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1) #blurred image
-        beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY) #convert to grayscale
-        ret, threshold = cv2.threshold(beltDetectGray,10,255,cv2.THRESH_BINARY) #threshold grayscale image
-        beltDetectCanny = cv2.Canny(threshold,50,50)
-        kernel = np.ones((5, 5))
-        beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
-        getContours(beltDetectDilate,beltContoured)
+        getContours(preprocess(blackPlasticDetect),beltContoured)
         #Display cropped image
         for i in range(len(cropimg)):
             cropw = int(cropimg[i].shape[1] * 3)
@@ -136,7 +136,6 @@ while True:
             cropresized = cv2.resize(cropimg[i], cropdim, interpolation=cv2.INTER_AREA)
             cv2.imshow("Crop" + str(i), cropresized)
 
-        cv2.imshow("Threshold Belt",threshold)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
         #cv2.imshow("Black Plastics Detected", blackPlasticDetect)
