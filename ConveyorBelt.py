@@ -44,7 +44,7 @@ def getContours(imgCanny, imgContoured):
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
                 x,y,w,h = cv2.boundingRect(approx)
                 #bounding the detected plastic
-                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),2)
                 #Crop the images
                 if len(cropImages)<5: #Because the number of cropped images is infinite
                     cropimg = imgContoured[y:(y+h),x:(x+w)]
