@@ -27,17 +27,22 @@ def mousePoints(event,x,y,flags,params):
         corners[counter] = x,y
         counter = counter + 1
         #print(corners)
-
-cropImages = []
-
+cropimg = []
 def getContours(imgCanny, imgContoured):
-    global cropImages
+    global cropimg
+    cropimg = []
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if len(contours)>0: #if there are contours detected
         for cnt in contours:
-            cntArea = cv2.contourArea(cnt)
+            cntArea = cv2.contourArea(cnt) #filter out noise by areas
             if cntArea>=minBlackPlasticCntSize:
-                hull = cv2.convexHull(cnt)  # implement convex hull
+                #Find Moment -> center of mass
+                M = cv2.moments(cnt)
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                print("The center of mass is " + str(cx)+" and " + str(cy))
+                #implement convex hull
+                hull = cv2.convexHull(cnt)
                 cv2.drawContours(imgContoured, hull, -1, (255, 0, 0), 3)
                 #approximate the bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
@@ -46,12 +51,11 @@ def getContours(imgCanny, imgContoured):
                 #bounding the detected plastic
                 cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),2)
                 #Crop the images
-                if len(cropImages)<5: #Because the number of cropped images is infinite
-                    cropimg = imgContoured[y:(y+h),x:(x+w)]
-                    cropImages.append(cropimg)
-
+                cropimg.append(imgContoured[y:(y+h),x:(x+w)])
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+
+
 
 #Video Capture
 cap = cv2.VideoCapture(0)
@@ -119,25 +123,24 @@ while True:
 
         beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1) #blurred image
         beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY) #convert to grayscale
-        ret, threshold = cv2.threshold(beltDetectBlur,10,255,cv2.THRESH_BINARY) #threshold grayscale image
+        ret, threshold = cv2.threshold(beltDetectGray,10,255,cv2.THRESH_BINARY) #threshold grayscale image
         beltDetectCanny = cv2.Canny(threshold,50,50)
         kernel = np.ones((5, 5))
         beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
         getContours(beltDetectDilate,beltContoured)
-        #Display cropped images
-        for i in range(len(cropImages)):
-            crop_w = int(cropImages[i].shape[1]*1)
-            crop_h = int(cropImages[i].shape[0]*1)
-            crop_dim = (crop_w,crop_h)
-            cropResized = cv2.resize(cropImages[i],crop_dim,interpolation=cv2.INTER_AREA)
-            cv2.imshow("Crop" + str(i),cropResized)
+        #Display cropped image
+        for i in range(len(cropimg)):
+            cropw = int(cropimg[i].shape[1] * 3)
+            croph = int(cropimg[i].shape[0] * 3)
+            cropdim = (cropw, croph)
+            cropresized = cv2.resize(cropimg[i], cropdim, interpolation=cv2.INTER_AREA)
+            cv2.imshow("Crop" + str(i), cropresized)
+
         cv2.imshow("Threshold Belt",threshold)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
-
         #cv2.imshow("Black Plastics Detected", blackPlasticDetect)
         cv2.imshow("Black Plastics Contoured", beltContoured)
-
 
     #The frame of the webcam
     cv2.imshow("Frame",frame)
