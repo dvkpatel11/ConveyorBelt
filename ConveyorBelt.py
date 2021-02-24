@@ -13,6 +13,10 @@ counter = 0
 def empty(var):
     pass
 
+#Object center coordinates
+objPosX = 0
+objPosY = 0
+
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
@@ -29,24 +33,21 @@ def mousePoints(event,x,y,flags,params):
         counter = counter + 1
         #print(corners)
 
-def secDetect(imgCanny, imgContoured):
-    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    for cnt in contours:
-        cntArea = cv2.contourArea(cnt)
-        if cntArea>=minBlackPlasticCntSize:
-            cntPerimeter = cv2.arcLength(cnt,True)
-            approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-            x,y,w,h = cv2.boundingRect(approx)
-            crop_img = imgCanny[y:y + h, x:x + w]
-            kernel = np.ones((5, 5))
-            secbeltDetectErode = cv2.dilate(crop_img, kernel, iterations=1)
-            secbeltDetectCanny = cv2.Canny(secbeltDetectErode,50,50)
-            kernel = np.ones((5, 5))
-            secbeltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
-    return secbeltDetectDilate
-
+#def secDetect(imgCanny):
+#    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    #for cnt in contours:
+    #    cntArea = cv2.contourArea(cnt)
+    #    if cntArea>=minBlackPlasticCntSize:
+    #        cntPerimeter = cv2.arcLength(cnt,True)
+    #        approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
+    #        x,y,w,h = cv2.boundingRect(approx)
+    #        crop_img = imgCanny[y:y + h, x:x + w]
+#    kernel = np.ones((5, 5))
+#    cv2.morphologyEx(imgCanny, cv2.MORPH_OPEN, kernel)
+#    cv2.morphologyEx(imgCanny, cv2.MORPH_CLOSE, kernel)
 
 def getContours(imgCanny, imgContoured):
+    global objPosX, objPosY #Declaring global object position variables to use
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
@@ -64,6 +65,44 @@ def getContours(imgCanny, imgContoured):
             cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
             #Center of the detected plastic
             cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+            objPosX = x+(w//2)
+            objPosY = y + (h // 2)
+
+#Check method to verify if an object center has reached the pump
+def blowOff(objPosX, pumpPosX):
+    pumpPosX = int(beltwidth/4)
+    return objPosX == pumpPosX
+
+def stackImages(scale,imgArray):
+    rows = len(imgArray)
+    cols = len(imgArray[0])
+    rowsAvailable = isinstance(imgArray[0], list)
+    width = imgArray[0][0].shape[1]
+    height = imgArray[0][0].shape[0]
+    if rowsAvailable:
+        for x in range ( 0, rows):
+            for y in range(0, cols):
+                if imgArray[x][y].shape[:2] == imgArray[0][0].shape [:2]:
+                    imgArray[x][y] = cv2.resize(imgArray[x][y], (0, 0), None, scale, scale)
+                else:
+                    imgArray[x][y] = cv2.resize(imgArray[x][y], (imgArray[0][0].shape[1], imgArray[0][0].shape[0]), None, scale, scale)
+                if len(imgArray[x][y].shape) == 2: imgArray[x][y]= cv2.cvtColor( imgArray[x][y], cv2.COLOR_GRAY2BGR)
+        imageBlank = np.zeros((height, width, 3), np.uint8)
+        hor = [imageBlank]*rows
+        hor_con = [imageBlank]*rows
+        for x in range(0, rows):
+            hor[x] = np.hstack(imgArray[x])
+        ver = np.vstack(hor)
+    else:
+        for x in range(0, rows):
+            if imgArray[x].shape[:2] == imgArray[0].shape[:2]:
+                imgArray[x] = cv2.resize(imgArray[x], (0, 0), None, scale, scale)
+            else:
+                imgArray[x] = cv2.resize(imgArray[x], (imgArray[0].shape[1], imgArray[0].shape[0]), None,scale, scale)
+            if len(imgArray[x].shape) == 2: imgArray[x] = cv2.cvtColor(imgArray[x], cv2.COLOR_GRAY2BGR)
+        hor= np.hstack(imgArray)
+        ver = hor
+    return ver
 
 #Video Capture
 cap = cv2.VideoCapture(0)
@@ -104,7 +143,9 @@ while True:
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
-        cv2.imshow("Cropped Belt",belt)
+        #Mark line of pump position.
+        cv2.line(belt, (int(beltwidth/4),0), (int(beltwidth/4),belthheight), (0, 0, 255), thickness=3)
+        #cv2.imshow("Cropped Belt",belt)
 
         #Detect Black Objects on the Conveyor Belt
         beltHSV = cv2.cvtColor(belt,cv2.COLOR_BGR2HSV) #Convert the colorspace to HSV
@@ -128,31 +169,41 @@ while True:
         beltContoured = belt.copy()
 
         #Use Canny Edge Detection on the color thresholded belt
+        beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
+        beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
+        v = np.median(beltDetectGray)
+        sigma = 0.33
+        # ---- apply optimal Canny edge detection using the computed median----
+        lower_thresh = int(max(0, (1.0 - sigma) * v))
+        upper_thresh = int(min(255, (1.0 + sigma) * v))
+        beltDetectCanny = cv2.Canny(beltDetectGray,lower_thresh,upper_thresh)
 
-        beltDetectBlur = cv2.GaussianBlur(blackPlasticDetect,(7,7),1)
-        beltDetectGray = cv2.cvtColor(beltDetectBlur, cv2.COLOR_BGR2GRAY)
-        beltDetectCanny = cv2.Canny(beltDetectGray,50,50)
+        #Do a second layer of processing
+        beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
+        # Remove small noise bits in image by dilating and eroding
         kernel = np.ones((5, 5))
-        beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
-        secondLayerDetect = secDetect(beltDetectDilate,beltContoured)
-        getContours(secondLayerDetect,beltContoured)
+        imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
+        getContours(imgCannyClose,beltContoured)
+
+        #sets a serial signal to True when a black object has reached the line of action of the pump
+        signalToPump = blowOff(objPosX, beltwidth)
+        print(objPosX, signalToPump)
 
         # cv2.imshow("Gray",beltDetectGray)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
 
-        cv2.imshow("Black Plastics Detected", blackPlasticDetect)
-        cv2.imshow("Black Plastics Contoured", beltContoured)
-
+        imgStack = stackImages(0.8, ([belt, blackPlasticDetect, beltBilateralFiltered, beltDetectGray],
+                                     [beltDetectCanny, beltDetectBlur, imgCannyClose,beltContoured]))
+        cv2.imshow("Process windows", imgStack)
+        #cv2.imshow("Black Plastics Contoured", beltContoured)
 
     #The frame of the webcam
     cv2.imshow("Frame",frame)
 
-
     #Press q on the keyboard to quit
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-
 
 #Optional
 # cap.release()
