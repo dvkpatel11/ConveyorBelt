@@ -56,7 +56,7 @@ def getContours(imgCanny, imgContoured):
     for cnt in contours:
         cntArea = cv2.contourArea(cnt)
         if cntArea>=minBlackPlasticCntSize:
-            cv2.drawContours(imgContoured,cnt,-1,(0,255,0),3)
+            cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
             cntPerimeter = cv2.arcLength(cnt,True)
             approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
             x,y,w,h = cv2.boundingRect(approx)
