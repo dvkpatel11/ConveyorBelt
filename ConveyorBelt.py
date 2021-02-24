@@ -29,9 +29,26 @@ def mousePoints(event,x,y,flags,params):
         counter = counter + 1
         #print(corners)
 
+def secDetect(imgCanny, imgContoured):
+    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    for cnt in contours:
+        cntArea = cv2.contourArea(cnt)
+        if cntArea>=minBlackPlasticCntSize:
+            cntPerimeter = cv2.arcLength(cnt,True)
+            approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
+            x,y,w,h = cv2.boundingRect(approx)
+            crop_img = imgCanny[y:y + h, x:x + w]
+            kernel = np.ones((5, 5))
+            secbeltDetectErode = cv2.dilate(crop_img, kernel, iterations=1)
+            secbeltDetectCanny = cv2.Canny(secbeltDetectErode,50,50)
+            kernel = np.ones((5, 5))
+            secbeltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
+    return secbeltDetectDilate
+
+
 def getContours(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    cv2.drawContours(imgContoured,contours,-1,(0,255,0),3)
+    #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
     # x, y, w, h = cv2.boundingRect(maxContour)
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
@@ -47,8 +64,6 @@ def getContours(imgCanny, imgContoured):
             cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
             #Center of the detected plastic
             cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-
-
 
 #Video Capture
 cap = cv2.VideoCapture(0)
@@ -119,7 +134,8 @@ while True:
         beltDetectCanny = cv2.Canny(beltDetectGray,50,50)
         kernel = np.ones((5, 5))
         beltDetectDilate = cv2.dilate(beltDetectCanny, kernel, iterations=1)
-        getContours(beltDetectDilate,beltContoured)
+        secondLayerDetect = secDetect(beltDetectDilate,beltContoured)
+        getContours(secondLayerDetect,beltContoured)
 
         # cv2.imshow("Gray",beltDetectGray)
         # cv2.imshow("Blur",beltDetectBlur)
@@ -141,4 +157,3 @@ while True:
 #Optional
 # cap.release()
 # cv2.destroyWindow()
-
