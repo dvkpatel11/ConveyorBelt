@@ -13,6 +13,9 @@ counter = 0
 def empty(var):
     pass
 
+#Leading object
+leadObjPosX = 0
+
 #Object center coordinates
 objPosX = 0
 objPosY = 0
@@ -47,7 +50,7 @@ def mousePoints(event,x,y,flags,params):
 #    cv2.morphologyEx(imgCanny, cv2.MORPH_CLOSE, kernel)
 
 def getContours(imgCanny, imgContoured):
-    global objPosX, objPosY #Declaring global object position variables to use
+    global objPosX, objPosY, leadObjPosX #Declaring global object position variables to use
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
@@ -67,11 +70,15 @@ def getContours(imgCanny, imgContoured):
             cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
             objPosX = x+(w//2)
             objPosY = y + (h // 2)
+            if objPosX >= leadObjPosX:
+                leadObjPosX = objPosX
 
 #Check method to verify if an object center has reached the pump
-def blowOff(objPosX, pumpPosX):
-    pumpPosX = int(beltwidth/4)
-    return objPosX == pumpPosX
+def blowOff(paramPosX, pumpPosX):
+    signalToPump = False
+    if (paramPosX == pumpPosX):
+        signalToPump = True
+    return signalToPump
 
 def stackImages(scale,imgArray):
     rows = len(imgArray)
@@ -140,11 +147,11 @@ while True:
         # belthheight = 350
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
+        #Setting Pump position to be 0.75 *beltwidth
+        pumpPosX = int(beltwidth)*0.75
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
-        #Mark line of pump position.
-        cv2.line(belt, (int(beltwidth/4),0), (int(beltwidth/4),belthheight), (0, 0, 255), thickness=3)
         #cv2.imshow("Cropped Belt",belt)
 
         #Detect Black Objects on the Conveyor Belt
@@ -167,7 +174,8 @@ while True:
 
         #Copy the belt to be contoured
         beltContoured = belt.copy()
-
+        #Mark line of pump position.
+        cv2.line(beltContoured, (int(beltwidth*0.75),0), (int(beltwidth*0.75),belthheight), (0, 0, 255), thickness=3)
         #Use Canny Edge Detection on the color thresholded belt
         beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
         beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
@@ -179,22 +187,26 @@ while True:
         beltDetectCanny = cv2.Canny(beltDetectGray,lower_thresh,upper_thresh)
 
         #Do a second layer of processing
-        beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
+        #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
+        beltDetectBlur = cv2.bilateralFilter(beltDetectCanny, 3, 3, 3)
         # Remove small noise bits in image by dilating and eroding
         kernel = np.ones((5, 5))
         imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
         getContours(imgCannyClose,beltContoured)
 
         #sets a serial signal to True when a black object has reached the line of action of the pump
-        signalToPump = blowOff(objPosX, beltwidth)
-        print(objPosX, signalToPump)
+        signalToPump = blowOff(leadObjPosX, pumpPosX)
+        if(signalToPump or leadObjPosX>=pumpPosX):
+            leadObjPosX = 0
+        print(leadObjPosX, signalToPump)
 
         # cv2.imshow("Gray",beltDetectGray)
         # cv2.imshow("Blur",beltDetectBlur)
         # cv2.imshow("Canny",beltDetectCanny)
 
-        imgStack = stackImages(0.8, ([belt, blackPlasticDetect, beltBilateralFiltered, beltDetectGray],
-                                     [beltDetectCanny, beltDetectBlur, imgCannyClose,beltContoured]))
+        #imgStack = stackImages(0.8, ([belt, blackPlasticDetect, beltBilateralFiltered, beltDetectGray],
+        #                            [beltDetectCanny, beltDetectBlur, imgCannyClose,beltContoured]))
+        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
 
