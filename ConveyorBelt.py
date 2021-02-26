@@ -2,6 +2,13 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
+
+#Class to create detected objects and their centroids.
+class regObj:
+    def __init__(self, paramCenterX, paramCenterY):
+        self.centerX = paramCenterX
+        self.centerY = paramCenterY
 
 #Step
 #1) Use Warp Perspective to Crop the Conveyor Belt Section
@@ -13,12 +20,8 @@ counter = 0
 def empty(var):
     pass
 
-#Leading object
-leadObjPosX = 0
-
-#Object center coordinates
-objPosX = 0
-objPosY = 0
+#Initialize centroid tracker and frame dimensions
+ct = CentroidTracker()
 
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
@@ -50,7 +53,6 @@ def mousePoints(event,x,y,flags,params):
 #    cv2.morphologyEx(imgCanny, cv2.MORPH_CLOSE, kernel)
 
 def getContours(imgCanny, imgContoured):
-    global objPosX, objPosY, leadObjPosX #Declaring global object position variables to use
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
@@ -68,10 +70,8 @@ def getContours(imgCanny, imgContoured):
             cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
             #Center of the detected plastic
             cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-            objPosX = x+(w//2)
-            objPosY = y + (h // 2)
-            if objPosX >= leadObjPosX:
-                leadObjPosX = objPosX
+            #Register a valid contour obj
+            rects.append(regObj((x+(w//2)),(y+(h//2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
@@ -153,7 +153,6 @@ while True:
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
         #cv2.imshow("Cropped Belt",belt)
-
         #Detect Black Objects on the Conveyor Belt
         beltHSV = cv2.cvtColor(belt,cv2.COLOR_BGR2HSV) #Convert the colorspace to HSV
         #Get the threshold from the colorbars window
@@ -169,9 +168,6 @@ while True:
         upper = np.array([h_max,s_max,v_max])
         blackMask = cv2.inRange(beltHSV,lower,upper)
         blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask)
-        #cv2.imshow("HSV", beltHSV)
-        #cv2.imshow("Mask", blackMask)
-
         #Copy the belt to be contoured
         beltContoured = belt.copy()
         #Mark line of pump position.
@@ -185,33 +181,34 @@ while True:
         lower_thresh = int(max(0, (1.0 - sigma) * v))
         upper_thresh = int(min(255, (1.0 + sigma) * v))
         beltDetectCanny = cv2.Canny(beltDetectGray,lower_thresh,upper_thresh)
-
         #Do a second layer of processing
         #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
         beltDetectBlur = cv2.bilateralFilter(beltDetectCanny, 3, 3, 3)
         # Remove small noise bits in image by dilating and eroding
         kernel = np.ones((5, 5))
         imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
+        #List of detected bounding rectangles
+        rects = []
+        #Get valid contours from canny detected image and display them
         getContours(imgCannyClose,beltContoured)
-
+        #Keep track of detected contours and store as objects
+        objects = ct.update(rects)
+        #Print object ID and centroid. Obtained from piImageSearch source codde.
+        for (objectID, centroid) in objects.items():
+            # draw both the ID of the object and the centroid of the
+            # object on the output frame
+            text = "ID {}".format(objectID)
+            cv2.putText(belt, text, (centroid[0] - 10, centroid[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
-        signalToPump = blowOff(leadObjPosX, pumpPosX)
-        if(signalToPump or leadObjPosX>=pumpPosX):
-            leadObjPosX = 0
-        print(leadObjPosX, signalToPump)
-
-        # cv2.imshow("Gray",beltDetectGray)
-        # cv2.imshow("Blur",beltDetectBlur)
-        # cv2.imshow("Canny",beltDetectCanny)
-
-        #imgStack = stackImages(0.8, ([belt, blackPlasticDetect, beltBilateralFiltered, beltDetectGray],
-        #                            [beltDetectCanny, beltDetectBlur, imgCannyClose,beltContoured]))
+        #signalToPump = blowOff(leadObjPosX, pumpPosX)
         imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
 
     #The frame of the webcam
-    cv2.imshow("Frame",frame)
+    cv2.imshow("Frame", frame)
 
     #Press q on the keyboard to quit
     if cv2.waitKey(1) & 0xFF == ord('q'):
