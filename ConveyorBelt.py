@@ -26,7 +26,7 @@ ct = CentroidTracker()
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
-cv2.createTrackbar("Min Area","CountourSize",500,30000,empty) #these values can be modified
+cv2.createTrackbar("Min Area","CountourSize",200,30000,empty) #these values can be modified
 
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
@@ -59,19 +59,20 @@ def getContours(imgCanny, imgContoured):
     # x, y, w, h = cv2.boundingRect(maxContour)
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
     # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
-    for cnt in contours:
-        cntArea = cv2.contourArea(cnt)
-        if cntArea>=minBlackPlasticCntSize:
-            cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
-            cntPerimeter = cv2.arcLength(cnt,True)
-            approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-            x,y,w,h = cv2.boundingRect(approx)
-            #bounding the detected plastic
-            cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
-            #Center of the detected plastic
-            cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-            #Register a valid contour obj
-            rects.append(regObj((x+(w//2)),(y+(h//2))))
+    if len(contours)>0:
+        for cnt in contours:
+            cntArea = cv2.contourArea(cnt)
+            if cntArea>=minBlackPlasticCntSize:
+                cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
+                cntPerimeter = cv2.arcLength(cnt,True)
+                approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
+                x,y,w,h = cv2.boundingRect(approx)
+                #bounding the detected plastic
+                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                #Center of the detected plastic
+                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+                #Register a valid contour obj
+                rects.append(regObj((x+(w//2)),(y+(h//2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
