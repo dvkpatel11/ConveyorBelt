@@ -26,7 +26,7 @@ ct = CentroidTracker()
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
-cv2.createTrackbar("Min Area","CountourSize",200,30000,empty) #these values can be modified
+cv2.createTrackbar("Min Area","CountourSize",50,30000,empty) #these values can be modified
 
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
@@ -53,6 +53,7 @@ def mousePoints(event,x,y,flags,params):
 #    cv2.morphologyEx(imgCanny, cv2.MORPH_CLOSE, kernel)
 
 def getContours(imgCanny, imgContoured):
+
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
@@ -60,6 +61,9 @@ def getContours(imgCanny, imgContoured):
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
     # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
     if len(contours)>0:
+        concat_cnts = np.concatenate(contours)
+        x, y, w, h = cv2.boundingRect(concat_cnts)
+        cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (255, 0, 0), 3)
         for cnt in contours:
             cntArea = cv2.contourArea(cnt)
             if cntArea>=minBlackPlasticCntSize:
@@ -72,7 +76,7 @@ def getContours(imgCanny, imgContoured):
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
                 #Register a valid contour obj
-                rects.append(regObj((x+(w//2)),(y+(h//2))))
+                #rects.append(regObj((x+(w//2)),(y+(h//2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
@@ -129,7 +133,7 @@ cv2.createTrackbar("Sat Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Sat Max","ColorBars",255,255,empty)
 cv2.createTrackbar("Val Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Val Max","ColorBars",90,255,empty) #Pick 90 as maximum value for black color
-
+cv2.createTrackbar("Val Max (Color)","ColorBars",200,255,empty)
 #Read the Video Capture
 while True:
     success, frame = cap.read()
@@ -163,14 +167,37 @@ while True:
         s_max = cv2.getTrackbarPos("Sat Max", "ColorBars")
         v_min = cv2.getTrackbarPos("Val Min", "ColorBars")
         v_max = cv2.getTrackbarPos("Val Max", "ColorBars")
+        v_max_color = cv2.getTrackbarPos("Val Max (Color)","ColorBars")
         # print(h_min,h_max,s_min,s_max,v_min,v_max)
+        #Non-White Threshold
+        lower_color = np.array([h_min,s_min,v_min]) #
+        upper_color = np.array([h_max,s_max,v_max_color])#
+        colorMask = cv2.inRange(beltHSV,lower_color,upper_color)
+        nonWhiteDetect = cv2.bitwise_and(belt,belt,mask=colorMask)
+        # Color Plastic Contour
+        nonWhiteContoured = belt.copy()
+        colorBilateralFiltered = cv2.bilateralFilter(nonWhiteDetect,3,3,3)
+        colorDetectGray = cv2.cvtColor(colorBilateralFiltered,cv2.COLOR_BGR2GRAY)
+        v_c = np.median(colorDetectGray)
+        sigma = 0.33
+        lower_thresh_c = int(max(0, (1.0 - sigma) * v_c))
+        upper_thresh_c = int(min(255, (1.0 + sigma) * v_c))
+        colorDetectCanny = cv2.Canny(colorDetectGray, lower_thresh_c, upper_thresh_c)
+        #Do a second layer of processing
+        #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
+        colorDetectBlur = cv2.bilateralFilter(colorDetectCanny, 3, 3, 3)
+        # Remove small noise bits in image by dilating and eroding
+        kernel = np.ones((5, 5))
+        colorCannyClose = cv2.morphologyEx(colorDetectBlur, cv2.MORPH_CLOSE, kernel)
+        getContours(colorCannyClose,nonWhiteContoured)
         #Black Color Threshold
-        lower = np.array([h_min,s_min,v_min])
-        upper = np.array([h_max,s_max,v_max])
-        blackMask = cv2.inRange(beltHSV,lower,upper)
-        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask)
+        lower_black = np.array([h_min,s_min,v_min]) #
+        upper_black = np.array([h_max,s_max,v_max]) #
+
+        blackMask = cv2.inRange(beltHSV,lower_black,upper_black) #
+        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask) #
         #Copy the belt to be contoured
-        beltContoured = belt.copy()
+        beltContoured = belt.copy() #
         #Mark line of pump position.
         cv2.line(beltContoured, (int(beltwidth*0.75),0), (int(beltwidth*0.75),belthheight), (0, 0, 255), thickness=3)
         #Use Canny Edge Detection on the color thresholded belt
@@ -204,7 +231,7 @@ while True:
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
         #signalToPump = blowOff(leadObjPosX, pumpPosX)
-        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
+        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured,nonWhiteContoured]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
 
