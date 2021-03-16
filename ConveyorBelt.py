@@ -47,8 +47,28 @@ def mousePoints(event,x,y,flags,params):
         counter = counter + 1
         #print(corners)
 
-def getContours(imgCanny, imgContoured):
-    imgFlooded = imgCannyClose.copy()
+def getContoursOnce(imgCanny, imgContoured):
+    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
+    #maxContour = max(contours,key=cv2.contourArea)
+    # x, y, w, h = cv2.boundingRect(maxContour)
+    # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
+    # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
+    if len(contours)>0:
+        for cnt in contours:
+            cntArea = cv2.contourArea(cnt)
+            if cntArea>=minBlackPlasticCntSize:
+                cntPerimeter = cv2.arcLength(cnt,True)
+                approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
+                x,y,w,h = cv2.boundingRect(approx)
+                #bounding the detected plastic
+                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                #Center of the detected plastic
+                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+                #Register a valid contour obj
+                rects.append(Point((x+(w//2)),(y+(h//2))))
+
+def getContoursTwice(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
@@ -62,13 +82,6 @@ def getContours(imgCanny, imgContoured):
                 cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-                x,y,w,h = cv2.boundingRect(approx)
-                #bounding the detected plastic
-                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
-                #Center of the detected plastic
-                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-                #Register a valid contour obj
-                rects.append(Point((x+(w//2)),(y+(h//2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
@@ -186,8 +199,8 @@ while True:
         imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
         #List of detected bounding rectangles
         rects = []
-        #Get valid contours from canny detected image and display them
-        getContours(imgCannyClose, belt.copy())
+        #Get valid contours from canny detected image them
+        getContoursOnce(imgCannyClose, beltContoured)
         #Keep track of detected contours and store as objects
         objects = ct.update(rects)
         #Print object ID and centroid. Obtained from piImageSearch source codde.
@@ -202,16 +215,16 @@ while True:
         beltGray = cv2.cvtColor(belt, cv2.COLOR_BGR2GRAY)
         if (len(rects)>0):
             seed = rects[0]
-            imgFlooded = flood_fill(beltGray, (seed.centerY, seed.centerX), 0, tolerance=15)
+            imgFlooded = flood_fill(beltGray, (seed.centerY, seed.centerX), 0, tolerance=10)
             ret, imgBinary = cv2.threshold(imgFlooded, 128, 255, cv2.THRESH_BINARY)
-            getContours(imgBinary, beltContoured)
-            cv2.imshow("Process windows2", imgFlooded)
-            cv2.imshow("Process windows1", imgBinary)
+            getContoursTwice(imgFlooded, beltContoured)
+            imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured, imgFlooded, imgBinary]))
+        else:
+            imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
+
+        cv2.imshow("Process windows", imgStack)
         #sets a serial signal to True when a black object has reached the line of action of the pump
         #signalToPump = blowOff(leadObjPosX, pumpPosX)
-        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
-        cv2.imshow("Process windows", imgStack)
-        #cv2.imshow("Black Plastics Contoured", beltContoured)
 
     #The frame of the webcam
     cv2.imshow("Frame", frame)
