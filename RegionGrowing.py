@@ -2,28 +2,28 @@ import numpy as np
 import cv2
 
 
-class Point(object):
+class regObj(object):
     def __init__(self, x, y):
-        self.x = x
-        self.y = y
+        self.centerX = x
+        self.centerY = y
 
     def getX(self):
-        return self.x
+        return self.centerX
 
     def getY(self):
-        return self.y
+        return self.centerY
 
 
 def getGrayDiff(img, currentPoint, tmpPoint):
-    return abs(int(img[currentPoint.x, currentPoint.y]) - int(img[tmpPoint.x, tmpPoint.y]))
+    return abs(int(img[currentPoint.centerX, currentPoint.centerY]) - int(img[tmpPoint.centerX, tmpPoint.centerY]))
 
 
 def selectConnects(p):
     if p != 0:
-        connects = [Point(-1, -1), Point(0, -1), Point(1, -1), Point(1, 0), Point(1, 1), \
-                    Point(0, 1), Point(-1, 1), Point(-1, 0)]
+        connects = [regObj(-1, -1), regObj(0, -1), regObj(1, -1), regObj(1, 0), regObj(1, 1), \
+                    regObj(0, 1), regObj(-1, 1), regObj(-1, 0)]
     else:
-        connects = [Point(0, -1), Point(1, 0), Point(0, 1), Point(-1, 0)]
+        connects = [regObj(0, -1), regObj(1, 0), regObj(0, 1), regObj(-1, 0)]
     return connects
 
 
@@ -38,21 +38,22 @@ def regionGrow(img, seeds, thresh, p=1):
     while (len(seedList) > 0):
         currentPoint = seedList.pop(0)
 
-        seedMark[currentPoint.x, currentPoint.y] = label
+        seedMark[currentPoint.centerX, currentPoint.centerY] = label
         for i in range(8):
-            tmpX = currentPoint.x + connects[i].x
-            tmpY = currentPoint.y + connects[i].y
+            tmpX = currentPoint.centerX + connects[i].centerX
+            tmpY = currentPoint.centerY + connects[i].centerY
             if tmpX < 0 or tmpY < 0 or tmpX >= height or tmpY >= weight:
                 continue
-            grayDiff = getGrayDiff(img, currentPoint, Point(tmpX, tmpY))
+            grayDiff = getGrayDiff(img, currentPoint, regObj(tmpX, tmpY))
             if grayDiff < thresh and seedMark[tmpX, tmpY] == 0:
                 seedMark[tmpX, tmpY] = label
-                seedList.append(Point(tmpX, tmpY))
+                seedList.append(regObj(tmpX, tmpY))
     return seedMark
 
 
 img = cv2.imread('lean.png', 0)
-seeds = [Point(10, 10), Point(82, 150), Point(20, 300)]
+seeds = [regObj(10, 10), regObj(82, 150), regObj(20, 200)]
 binaryImg = regionGrow(img, seeds, 10)
+cv2.imshow('',img)
 cv2.imshow(' ', binaryImg)
 cv2.waitKey(0)

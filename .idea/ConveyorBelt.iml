@@ -7,5 +7,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="MurtazaTutorial" />
+    <orderEntry type="module" module-name="Random" />
   </component>
 </module>

@@ -3,12 +3,59 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
+from skimage import data,filters,color,morphology
+from skimage.segmentation import flood,flood_fill
+
+
 
 #Class to create detected objects and their centroids.
-class regObj:
-    def __init__(self, paramCenterX, paramCenterY):
-        self.centerX = paramCenterX
-        self.centerY = paramCenterY
+class regObj(object):
+    def __init__(self, x, y):
+        self.centerX = x
+        self.centerY = y
+
+    def getX(self):
+        return self.centerX
+
+    def getY(self):
+        return self.centerY
+
+
+def getGrayDiff(img, currentPoint, tmpPoint):
+    return abs(int(img[currentPoint.centerX, currentPoint.centerY]) - int(img[tmpPoint.centerX, tmpPoint.centerY]))
+
+
+def selectConnects(p):
+    if p != 0:
+        connects = [regObj(-1, -1), regObj(0, -1), regObj(1, -1), regObj(1, 0), regObj(1, 1), \
+                    regObj(0, 1), regObj(-1, 1), regObj(-1, 0)]
+    else:
+        connects = [regObj(0, -1), regObj(1, 0), regObj(0, 1), regObj(-1, 0)]
+    return connects
+
+
+def regionGrow(img, seeds, thresh, p=1):
+    height, weight = img.shape
+    seedMark = np.zeros(img.shape)
+    seedList = []
+    for seed in seeds:
+        seedList.append(seed)
+    label = 1
+    connects = selectConnects(p)
+    while (len(seedList) > 0):
+        currentPoint = seedList.pop(0)
+
+        seedMark[currentPoint.centerX, currentPoint.centerY] = label
+        for i in range(8):
+            tmpX = currentPoint.centerX + connects[i].centerX
+            tmpY = currentPoint.centerY + connects[i].centerY
+            if tmpX < 0 or tmpY < 0 or tmpX >= height or tmpY >= weight:
+                continue
+            grayDiff = getGrayDiff(img, currentPoint, regObj(tmpX, tmpY))
+            if grayDiff < thresh and seedMark[tmpX, tmpY] == 0:
+                seedMark[tmpX, tmpY] = label
+                seedList.append(regObj(tmpX, tmpY))
+    return seedMark
 
 #Step
 #1) Use Warp Perspective to Crop the Conveyor Belt Section
@@ -76,7 +123,7 @@ def getContours(imgCanny, imgContoured):
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
                 #Register a valid contour obj
-                #rects.append(regObj((x+(w//2)),(y+(h//2))))
+                rects.append(regObj((x+(w//2)),(y+(h//2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
@@ -133,7 +180,6 @@ cv2.createTrackbar("Sat Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Sat Max","ColorBars",255,255,empty)
 cv2.createTrackbar("Val Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Val Max","ColorBars",90,255,empty) #Pick 90 as maximum value for black color
-cv2.createTrackbar("Val Max (Color)","ColorBars",200,255,empty)
 #Read the Video Capture
 while True:
     success, frame = cap.read()
@@ -157,6 +203,7 @@ while True:
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
+        beltGray = cv2.cvtColor(belt,cv2.COLOR_BGR2GRAY)
         #cv2.imshow("Cropped Belt",belt)
         #Detect Black Objects on the Conveyor Belt
         beltHSV = cv2.cvtColor(belt,cv2.COLOR_BGR2HSV) #Convert the colorspace to HSV
@@ -167,29 +214,7 @@ while True:
         s_max = cv2.getTrackbarPos("Sat Max", "ColorBars")
         v_min = cv2.getTrackbarPos("Val Min", "ColorBars")
         v_max = cv2.getTrackbarPos("Val Max", "ColorBars")
-        v_max_color = cv2.getTrackbarPos("Val Max (Color)","ColorBars")
         # print(h_min,h_max,s_min,s_max,v_min,v_max)
-        #Non-White Threshold
-        lower_color = np.array([h_min,s_min,v_min]) #
-        upper_color = np.array([h_max,s_max,v_max_color])#
-        colorMask = cv2.inRange(beltHSV,lower_color,upper_color)
-        nonWhiteDetect = cv2.bitwise_and(belt,belt,mask=colorMask)
-        # Color Plastic Contour
-        nonWhiteContoured = belt.copy()
-        colorBilateralFiltered = cv2.bilateralFilter(nonWhiteDetect,3,3,3)
-        colorDetectGray = cv2.cvtColor(colorBilateralFiltered,cv2.COLOR_BGR2GRAY)
-        v_c = np.median(colorDetectGray)
-        sigma = 0.33
-        lower_thresh_c = int(max(0, (1.0 - sigma) * v_c))
-        upper_thresh_c = int(min(255, (1.0 + sigma) * v_c))
-        colorDetectCanny = cv2.Canny(colorDetectGray, lower_thresh_c, upper_thresh_c)
-        #Do a second layer of processing
-        #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
-        colorDetectBlur = cv2.bilateralFilter(colorDetectCanny, 3, 3, 3)
-        # Remove small noise bits in image by dilating and eroding
-        kernel = np.ones((5, 5))
-        colorCannyClose = cv2.morphologyEx(colorDetectBlur, cv2.MORPH_CLOSE, kernel)
-        getContours(colorCannyClose,nonWhiteContoured)
         #Black Color Threshold
         lower_black = np.array([h_min,s_min,v_min]) #
         upper_black = np.array([h_max,s_max,v_max]) #
@@ -197,7 +222,7 @@ while True:
         blackMask = cv2.inRange(beltHSV,lower_black,upper_black) #
         blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask) #
         #Copy the belt to be contoured
-        beltContoured = belt.copy() #
+        beltContoured = belt.copy()
         #Mark line of pump position.
         cv2.line(beltContoured, (int(beltwidth*0.75),0), (int(beltwidth*0.75),belthheight), (0, 0, 255), thickness=3)
         #Use Canny Edge Detection on the color thresholded belt
@@ -231,7 +256,8 @@ while True:
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
         #signalToPump = blowOff(leadObjPosX, pumpPosX)
-        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured,nonWhiteContoured]))
+        regionGrownImg = regionGrow(beltGray,rects,10)
+        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured,beltDetectGray,beltGray]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
 
