@@ -33,7 +33,7 @@ def selectConnects(p):
 
 
 def regionGrow(img, seeds, thresh, p=1):
-    height, weight = img.shape
+    height, weight = img.shape[0:2]
     seedMark = np.zeros(img.shape)
     seedList = []
     for seed in seeds:
@@ -221,6 +221,8 @@ while True:
         getContours(imgCannyClose,beltContoured)
         #Keep track of detected contours and store as objects
         objects = ct.update(rects)
+        #Region growing
+
         #Print object ID and centroid. Obtained from piImageSearch source codde.
         for (objectID, centroid) in objects.items():
             # draw both the ID of the object and the centroid of the
