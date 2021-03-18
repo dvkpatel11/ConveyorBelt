@@ -174,8 +174,6 @@ while True:
     if counter == 4:
         pts1 = np.float32([corners[0],corners[1],corners[2],corners[3]])
         #Make sure to follow the pattern
-        # beltwidth = 250
-        # belthheight = 350
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
         #Setting Pump position to be 0.75 *beltwidth
@@ -184,7 +182,6 @@ while True:
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
         beltGray = cv2.cvtColor(belt,cv2.COLOR_BGR2GRAY)
-        #cv2.imshow("Cropped Belt",belt)
         #Detect Black Objects on the Conveyor Belt
         beltHSV = cv2.cvtColor(belt,cv2.COLOR_BGR2HSV) #Convert the colorspace to HSV
         #Get the threshold from the colorbars window
@@ -194,13 +191,11 @@ while True:
         s_max = cv2.getTrackbarPos("Sat Max", "ColorBars")
         v_min = cv2.getTrackbarPos("Val Min", "ColorBars")
         v_max = cv2.getTrackbarPos("Val Max", "ColorBars")
-        # print(h_min,h_max,s_min,s_max,v_min,v_max)
         #Black Color Threshold
-        lower_black = np.array([h_min,s_min,v_min]) #
-        upper_black = np.array([h_max,s_max,v_max]) #
-
-        blackMask = cv2.inRange(beltHSV,lower_black,upper_black) #
-        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask) #
+        lower_black = np.array([h_min,s_min,v_min])
+        upper_black = np.array([h_max,s_max,v_max])
+        blackMask = cv2.inRange(beltHSV,lower_black,upper_black)
+        blackPlasticDetect = cv2.bitwise_and(belt,belt,mask=blackMask)
         #Copy the belt to be contoured
         beltContoured = belt.copy()
         #Mark line of pump position.
