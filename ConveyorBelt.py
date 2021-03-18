@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
 from skimage import data,filters,color,morphology
 from skimage.segmentation import flood,flood_fill
+import time
 
 #Class to create detected objects and their centroids.
 class regObj(object):
@@ -88,21 +89,21 @@ def getContours(imgCanny, imgContoured):
             if cv2.contourArea(cnt) >= minBlackPlasticCntSize:
                 #Add contour in the list
                 large_contour_list.append(cnt)
-                cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
+                cv2.drawContours(imgContoured,cnt,-1,(0,255,0),1)
                 #Approximate bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
                 x,y,w,h = cv2.boundingRect(approx)
                 #bounding the detected plastic
-                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),1)
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-                #Register a valid contour obj
-                rects.append(regObj((x+(w//2)),(y+(h//2))))
     if len(large_contour_list) > 0:
         concat_cnts = np.concatenate(large_contour_list)
         x, y, w, h = cv2.boundingRect(concat_cnts)
         cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (255, 0, 0), 3)
+        # Register a valid contour obj
+        rects.append(regObj((x + (w // 2)), (y + (h // 2))))
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
