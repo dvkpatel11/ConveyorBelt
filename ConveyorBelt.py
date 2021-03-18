@@ -68,7 +68,7 @@ ct = CentroidTracker()
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
-cv2.createTrackbar("Min Area","CountourSize",50,30000,empty) #these values can be modified
+cv2.createTrackbar("Min Area","CountourSize",1500,30000,empty) #these values can be modified
 
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
@@ -144,7 +144,7 @@ def stackImages(scale,imgArray):
     return ver
 
 #Video Capture
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture("belt2.mp4")
 #Set the frame window dimensions
 cap.set(3,640)
 cap.set(4,480)
@@ -159,7 +159,7 @@ cv2.createTrackbar("Hue Max","ColorBars",179,179,empty)
 cv2.createTrackbar("Sat Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Sat Max","ColorBars",255,255,empty)
 cv2.createTrackbar("Val Min","ColorBars",0,255,empty)
-cv2.createTrackbar("Val Max","ColorBars",90,255,empty) #Pick 90 as maximum value for black color
+cv2.createTrackbar("Val Max","ColorBars",60,255,empty) #Pick 90 as maximum value for black color
 #Read the Video Capture
 while True:
     success, frame = cap.read()
@@ -240,9 +240,11 @@ while True:
     #The frame of the webcam
     cv2.imshow("Frame", frame)
 
-    #Press q on the keyboard to quit
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1)
+    if key == ord('q'):
         break
+    if key == ord('p'):
+        cv2.waitKey(-1)  # wait until any key is pressed
 
 #Optional
 # cap.release()
