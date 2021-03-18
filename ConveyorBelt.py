@@ -1,12 +1,9 @@
-#Import the library
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
 from skimage import data,filters,color,morphology
 from skimage.segmentation import flood,flood_fill
-
-
 
 #Class to create detected objects and their centroids.
 class regObj(object):
@@ -57,9 +54,6 @@ def regionGrow(img, seeds, thresh, p=1):
                 seedList.append(regObj(tmpX, tmpY))
     return seedMark
 
-#Step
-#1) Use Warp Perspective to Crop the Conveyor Belt Section
-#2) Detect Black Objects and Contour 4 corner of the conveyor belt
 corners = np.zeros((4,2),np.int)
 counter = 0
 
@@ -86,35 +80,16 @@ def mousePoints(event,x,y,flags,params):
         counter = counter + 1
         #print(corners)
 
-#def secDetect(imgCanny):
-#    contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    #for cnt in contours:
-    #    cntArea = cv2.contourArea(cnt)
-    #    if cntArea>=minBlackPlasticCntSize:
-    #        cntPerimeter = cv2.arcLength(cnt,True)
-    #        approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-    #        x,y,w,h = cv2.boundingRect(approx)
-    #        crop_img = imgCanny[y:y + h, x:x + w]
-#    kernel = np.ones((5, 5))
-#    cv2.morphologyEx(imgCanny, cv2.MORPH_OPEN, kernel)
-#    cv2.morphologyEx(imgCanny, cv2.MORPH_CLOSE, kernel)
-
 def getContours(imgCanny, imgContoured):
-
+    large_contour_list = [] #local variable
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) ;Already showing contours in the for loop
-    #maxContour = max(contours,key=cv2.contourArea)
-    # x, y, w, h = cv2.boundingRect(maxContour)
-    # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
-    # cv2.circle(imgContoured, (x + (w // 2), y + (h // 2)), 5, (0, 255, 0), cv2.FILLED)
     if len(contours)>0:
-        concat_cnts = np.concatenate(contours)
-        x, y, w, h = cv2.boundingRect(concat_cnts)
-        cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (255, 0, 0), 3)
         for cnt in contours:
-            cntArea = cv2.contourArea(cnt)
-            if cntArea>=minBlackPlasticCntSize:
+            if cv2.contourArea(cnt) >= minBlackPlasticCntSize:
+                #Add contour in the list
+                large_contour_list.append(cnt)
                 cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
+                #Approximate bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
                 x,y,w,h = cv2.boundingRect(approx)
@@ -124,6 +99,10 @@ def getContours(imgCanny, imgContoured):
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
                 #Register a valid contour obj
                 rects.append(regObj((x+(w//2)),(y+(h//2))))
+    if len(large_contour_list) > 0:
+        concat_cnts = np.concatenate(large_contour_list)
+        x, y, w, h = cv2.boundingRect(concat_cnts)
+        cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (255, 0, 0), 3)
 
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
@@ -256,7 +235,6 @@ while True:
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
         #signalToPump = blowOff(leadObjPosX, pumpPosX)
-        regionGrownImg = regionGrow(beltGray,rects,10)
         imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured,beltDetectGray,beltGray]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
