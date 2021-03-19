@@ -87,6 +87,9 @@ def getContours(imgCanny, imgContoured):
     if len(contours)>0:
         for cnt in contours:
             if cv2.contourArea(cnt) >= minBlackPlasticCntSize:
+                mask = np.zeros(imgCanny.shape, np.uint8)
+                cv2.drawContours(mask, cnt, -1, (255, 255, 0), 3)
+                
                 rect1 = cv2.minAreaRect(cnt)
                 box1 = cv2.boxPoints(rect1)
                 box1 = np.int0(box1)
