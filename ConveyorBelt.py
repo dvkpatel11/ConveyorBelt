@@ -185,7 +185,7 @@ cv2.createTrackbar("Val Max","ColorBars",60,255,empty) #Pick 90 as maximum value
 while (cap.isOpened()):
     success, frame = cap.read()
     if success == True:
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(5)
         # Click on the corners of the conveyor belt
         cv2.setMouseCallback("Frame", mousePoints)
         if key == ord('p'):
@@ -194,11 +194,8 @@ while (cap.isOpened()):
             break
     else:
         break
-
-
     for i in range(0,4):
         cv2.circle(frame,(corners[i][0],corners[i][1]),3,(0,255,0),cv2.FILLED)
-
     #When 4 corners are selected
     if counter == 4:
         pts1 = np.float32([corners[0],corners[1],corners[2],corners[3]])
@@ -270,7 +267,7 @@ while (cap.isOpened()):
     #The frame of the webcam
     cv2.imshow("Frame", frame)
 
-    key = cv2.waitKey(1)
+
     if key == ord('q'):
         break
     if key == ord('p'):
