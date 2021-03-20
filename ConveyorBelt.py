@@ -34,7 +34,7 @@ ct = CentroidTracker()
 #Countour Area Track Bar
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
-cv2.createTrackbar("Min Area","CountourSize",200,30000,empty) #these values can be modified
+cv2.createTrackbar("Min Area","CountourSize",20,30000,empty) #these values can be modified
 
 minBlackPlasticCntSize = cv2.getTrackbarPos("Min Area","CountourSize");
 
@@ -49,7 +49,7 @@ def mousePoints(event,x,y,flags,params):
 
 def getContours(imgCanny, imgContoured):
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) #Already showing contours in the for loop
+    #cv2.drawContours(imgContoured,contours,-1,(0,255,0),2) #Already showing contours in the for loop
     #maxContour = max(contours,key=cv2.contourArea)
     # x, y, w, h = cv2.boundingRect(maxContour)
     # cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 3)
@@ -59,16 +59,56 @@ def getContours(imgCanny, imgContoured):
             cntArea = cv2.contourArea(cnt)
             if cntArea>=minBlackPlasticCntSize:
                 cv2.drawContours(imgContoured,cnt,-1,(0,255,0),2)
-                cntPerimeter = cv2.arcLength(cnt,True)
-                approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-                x,y,w,h = cv2.boundingRect(approx)
-                #bounding the detected plastic
-                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
-                #Center of the detected plastic
-                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
+                #cntPerimeter = cv2.arcLength(cnt,True)
+                #approx = cv2.approxPolyDP(cnt,0.2*cntPerimeter,True)
+                #Trying a larger epsilon value when drawing contours for comparison
+                ##bounding the detected plastic
+                #x,y,w,h = cv2.boundingRect(approx)
+                #cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),3)
+                ##Center of the detected plastic
+                #cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
                 #Register a valid contour obj
-                rects.append(Point((x+(w//2)),(y+(h//2))))
+                #rects.append(Point((x+(w//2)),(y+(h//2)))) ;Temporarily switched to centroid from minRect
+    return contours
 
+def drawContours(beltContoured, listA, listB):
+        for cnt in listA:
+            cntArea = cv2.contourArea(cnt)
+            if cntArea >= minBlackPlasticCntSize:
+                M = cv2.moments(cnt)
+                centroid_x = int(M['m10'] / M['m00'])
+                centroid_y = int(M['m01'] / M['m00'])
+                for contours in listB:
+                    if cv2.pointPolygonTest(contours, (centroid_x, centroid_y), False):
+                        appendtoA = contours
+                        listA.insert(cnt, appendtoA)
+                        listA.remove(cnt)
+
+                epsilon = 0.1 * cv2.arcLength(cnt, True)
+                approx = cv2.approxPolyDP(cnt, epsilon, True)
+                cv2.drawContours(beltContoured, cnt, -1, (0, 255, 0), 2)
+                # Try minimum area rectangle for best controid approx
+                rect = cv2.minAreaRect(approx)
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                cv2.drawContours(beltContoured, [box], 0, (0, 0, 255), 2)
+                M = cv2.moments(cnt)
+                centroid_x = int(M['m10'] / M['m00'])
+                centroid_y = int(M['m01'] / M['m00'])
+                cv2.circle(beltContoured, (centroid_x, centroid_y), 5, (0, 0, 255), cv2.FILLED)
+                rects.append(Point(centroid_x, centroid_y))
+'''
+def floodFill(beltGray, contourslist):
+    for cnt in contourslist:
+        # Try floodfill for second layer of tests
+        n = cnt.ravel()
+        for i in range(len(n)):
+            if (i % 2 == 0):
+                x = n[i]
+                y = n[i + 1]
+                flood_fill(beltGray, (n[1], n[0]), 0, tolerance=10)
+    return beltGray
+'''
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
     signalToPump = False
@@ -108,7 +148,8 @@ def stackImages(scale,imgArray):
     return ver
 
 #Video Capture
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture('capstone.mp4')
+
 #Set the frame window dimensions
 cap.set(3,640)
 cap.set(4,480)
@@ -177,16 +218,30 @@ while True:
         lower_thresh = int(max(0, (1.0 - sigma) * v))
         upper_thresh = int(min(255, (1.0 + sigma) * v))
         beltDetectCanny = cv2.Canny(beltDetectGray,lower_thresh,upper_thresh)
-        #Do a second layer of processing
-        #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
+        #Do a second layer of processing for better contour detection
         beltDetectBlur = cv2.bilateralFilter(beltDetectCanny, 3, 3, 3)
         # Remove small noise bits in image by dilating and eroding
         kernel = np.ones((5, 5))
         imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
+        listA = getContours(imgCannyClose, beltContoured)
+        #Compare with the edges of original unmasked image to find a majority black plastic.
+        beltGray = cv2.cvtColor(belt, cv2.COLOR_BGR2GRAY)
+        beltGrayBilateralFiltered = cv2.bilateralFilter(beltGray, 3, 3, 3)
+        v = np.median(beltGrayBilateralFiltered)
+        sigma = 0.33
+        # ---- apply optimal Canny edge detection using the computed median----
+        lower_thresh = int(max(0, (1.0 - sigma) * v))
+        upper_thresh = int(min(255, (1.0 + sigma) * v))
+        beltCanny2 = cv2.Canny(beltGrayBilateralFiltered,lower_thresh,upper_thresh)
+        #Improve the edges detected
+        beltCanny2Blur = cv2.bilateralFilter(beltCanny2, 3, 3, 3)
+        beltCanny2Close = cv2.morphologyEx(beltCanny2Blur, cv2.MORPH_CLOSE, kernel)
         #List of detected bounding rectangles
         rects = []
-        #Get valid contours from canny detected image them
-        getContours(imgCannyClose, belt.copy())
+        #Get valid contours from canny detected image to find object centers
+        listB = getContours(beltCanny2Close, belt)
+        ####drawContours(beltContoured, listA, listB)
+
         #Keep track of detected contours and store as objects
         objects = ct.update(rects)
         #Print object ID and centroid. Obtained from piImageSearch source codde.
@@ -194,27 +249,33 @@ while True:
             # draw both the ID of the object and the centroid of the
             # object on the output frame
             text = "ID {}".format(objectID)
-            cv2.putText(belt, text, (centroid[0] - 10, centroid[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
-        #Try floodfill
-        beltGray = cv2.cvtColor(belt, cv2.COLOR_BGR2GRAY)
+            cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            cv2.circle(frame, (centroid[0], centroid[1]), 4, (255, 0, 0), -1)
+        '''
         if (len(rects)>0):
-            seed = rects[0]
-            imgFlooded = flood_fill(beltGray, (seed.centerY, seed.centerX), 0, tolerance=10)
-            ret, imgBinary = cv2.threshold(imgFlooded, 128, 255, cv2.THRESH_BINARY)
-            v = np.median(imgBinary)
-            sigma = 0.33
-            # ---- apply optimal Canny edge detection using the computed median----
-            lower_thresh = int(max(0, (1.0 - sigma) * v))
-            upper_thresh = int(min(255, (1.0 + sigma) * v))
-            ingBinaryCanny = cv2.Canny(imgBinary, lower_thresh, upper_thresh)
-            getContours(ingBinaryCanny, beltContoured)
-            imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured, imgBinary, ingBinaryCanny]))
+            #beltGray = belt.copy()
+            #beltGray = cv2.cvtColor(belt, cv2.COLOR_BGR2GRAY)
+            #imgFlooded = floodFill(beltGray, contourslist)
+            #ret, imgBinary = cv2.threshold(imgFlooded, 128, 255, cv2.THRESH_BINARY)
+            #v = np.median(imgBinary)
+            #sigma = 0.33
+            ## ---- apply optimal Canny edge detection using the computed median----
+            #lower_thresh = int(max(0, (1.0 - sigma) * v))
+            #upper_thresh = int(min(255, (1.0 + sigma) * v))
+            #ingBinaryCanny = cv2.Canny(imgBinary, lower_thresh, upper_thresh)
+            #getContours(ingBinaryCanny, beltContoured)
+            imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured, beltCanny2]))
         else:
             imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
-
+        '''
+        blur = cv2.GaussianBlur(belt, (5, 5), 0)
+        ret, imgBinary = cv2.threshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11)
+        imgStack = stackImages(1, ([belt, beltDetectCanny, imgCannyClose, beltContoured]))
+        imgStack2 = stackImages(1, ([imgBinary, beltGray, beltCanny2, beltCanny2Close]))
+        #Display windows of processed images
         cv2.imshow("Process windows", imgStack)
+        cv2.imshow("Process windows2", imgStack2)
         #sets a serial signal to True when a black object has reached the line of action of the pump
         #signalToPump = blowOff(leadObjPosX, pumpPosX)
 
