@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
 from skimage import data,filters,color,morphology
 from skimage.segmentation import flood,flood_fill
-import time
+from gpiozero import LED
+from time import sleep
 
 #Class to create detected objects and their centroids.
 class regObj(object):
@@ -86,6 +87,7 @@ def getContours(imgCanny, imgContoured):
     if len(contours)>0:
         for cnt in contours:
             if cv2.contourArea(cnt) >= minBlackPlasticCntSize:
+                #get smallest bounding box
                 rect1 = cv2.minAreaRect(cnt)
                 box1 = cv2.boxPoints(rect1)
                 box1 = np.int0(box1)
@@ -109,10 +111,13 @@ def getContours(imgCanny, imgContoured):
         centroid_y = int(M['m01'] / M['m00'])
         #rects.append(regObj(centroid_x,centroid_y))
 #Check method to verify if an object center has reached the pump
-def blowOff(paramPosX, pumpPosX):
+def blowOff(rects, pumpPosY_min, pumpPosY_max):
     signalToPump = False
-    if (paramPosX == pumpPosX):
-        signalToPump = True
+    if len(rects)>0:
+        leadObjY = rects[0].centerY
+        if (leadObjY == pumpPosY_max) and (leadObjY > pumpPosY_min):
+            signalToPump = True
+            rects.pop(0)
     return signalToPump
 
 def cannyClose(img):
@@ -184,7 +189,7 @@ cv2.createTrackbar("Val Max","ColorBars",60,255,empty) #Pick 90 as maximum value
 while (cap.isOpened()):
     success, frame = cap.read()
     if success == True:
-        key = cv2.waitKey(5)
+        key = cv2.waitKey(3)
         # Click on the corners of the conveyor belt
         cv2.setMouseCallback("Frame", mousePoints)
         if key == ord('p'):
@@ -202,7 +207,8 @@ while (cap.isOpened()):
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
         #Setting Pump position to be 0.75 *beltwidth
-        pumpPosX = int(beltwidth)*0.75
+        pumpPosY_min = int(belthheight)*0.45
+        pumpPosY_max = int(belthheight)*0.50
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
@@ -224,7 +230,9 @@ while (cap.isOpened()):
         #Copy the belt to be contoured
         beltContoured = belt.copy()
         #Mark line of pump position.
-        #cv2.line(beltContoured, (int(beltwidth*0.75),0), (int(beltwidth*0.75),belthheight), (0, 0, 255), thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight*0.45)), (beltwidth, int(belthheight*0.45)), (0, 0, 255), thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight * 0.55)), (beltwidth, int(belthheight * 0.55)), (0, 0, 255),
+                 thickness=3)
         # #Use Canny Edge Detection on the color thresholded belt
         # beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
         # beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
@@ -258,7 +266,9 @@ while (cap.isOpened()):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
-        #signalToPump = blowOff(leadObjPosX, pumpPosX)
+        if blowOff(rects,0,pumpPosY_max) == True:
+            print("true")
+
         imgStack = stackImages(1, ([belt, imgCannyClose, beltContoured,beltGray]))
         cv2.imshow("Process windows", imgStack)
         #cv2.imshow("Black Plastics Contoured", beltContoured)
