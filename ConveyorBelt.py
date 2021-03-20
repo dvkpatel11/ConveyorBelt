@@ -115,7 +115,7 @@ def blowOff(rects, pumpPosY_min, pumpPosY_max):
     signalToPump = False
     if len(rects)>0:
         leadObjY = rects[0].centerY
-        if (leadObjY == pumpPosY_max) and (leadObjY > pumpPosY_min):
+        if (leadObjY < pumpPosY_max) and (leadObjY > pumpPosY_min):
             signalToPump = True
             rects.pop(0)
     return signalToPump
@@ -231,8 +231,7 @@ while (cap.isOpened()):
         beltContoured = belt.copy()
         #Mark line of pump position.
         cv2.line(beltContoured, (0, int(belthheight*0.45)), (beltwidth, int(belthheight*0.45)), (0, 0, 255), thickness=3)
-        cv2.line(beltContoured, (0, int(belthheight * 0.55)), (beltwidth, int(belthheight * 0.55)), (0, 0, 255),
-                 thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight * 0.55)), (beltwidth, int(belthheight * 0.55)), (0, 0, 255),thickness=3)
         # #Use Canny Edge Detection on the color thresholded belt
         # beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
         # beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
