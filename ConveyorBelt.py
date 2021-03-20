@@ -31,7 +31,6 @@ def selectConnects(p):
         connects = [regObj(0, -1), regObj(1, 0), regObj(0, 1), regObj(-1, 0)]
     return connects
 
-
 def regionGrow(img, seeds, thresh, p=1):
     height, weight = img.shape[0:2]
     seedMark = np.zeros(img.shape)
@@ -102,13 +101,13 @@ def getContours(imgCanny, imgContoured):
                 cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),1)
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-                # rects.append(regObj((x + (w // 2)), (y + (h // 2))))
+                rects.append(regObj((x + (w // 2)), (y + (h // 2))))
     if len(large_contour_list) > 0:
         concat_cnts = np.concatenate(large_contour_list)
         M = cv2.moments(concat_cnts)
         centroid_x = int(M['m10'] / M['m00'])
         centroid_y = int(M['m01'] / M['m00'])
-        rects.append(regObj(centroid_x,centroid_y))
+        #rects.append(regObj(centroid_x,centroid_y))
 #Check method to verify if an object center has reached the pump
 def blowOff(paramPosX, pumpPosX):
     signalToPump = False
