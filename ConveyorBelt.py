@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from centroidtracker import CentroidTracker #Class btained from pyImageSearch open source code
 from skimage import data,filters,color,morphology
 from skimage.segmentation import flood,flood_fill
-from gpiozero import LED
+import gpiozero
 from time import sleep
 
 #Class to create detected objects and their centroids.
@@ -99,11 +99,15 @@ def getContours(imgCanny, imgContoured):
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
                 x,y,w,h = cv2.boundingRect(approx)
-                #bounding the detected plastic
-                cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),1)
+                # bounding the detected plastic
+                cv2.rectangle(imgContoured, (x, y), (x + w, y + h), (0, 255, 0), 1)
+                #Find Centroid
+                M1 = cv2.moments(cnt)
+                centroid_x1 = int(M1['m10'] / M1['m00'])
+                centroid_y1 = int(M1['m01'] / M1['m00'])
                 #Center of the detected plastic
-                cv2.circle(imgContoured,(x+(w//2),y+(h//2)),5,(0,255,0),cv2.FILLED)
-                rects.append(regObj((x + (w // 2)), (y + (h // 2))))
+                cv2.circle(imgContoured,(centroid_x1,centroid_y1),5,(0,255,0),cv2.FILLED)
+                rects.append(regObj((centroid_x1), (centroid_y1)))
     if len(large_contour_list) > 0:
         concat_cnts = np.concatenate(large_contour_list)
         M = cv2.moments(concat_cnts)
@@ -207,8 +211,8 @@ while (cap.isOpened()):
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
         #Setting Pump position to be 0.75 *beltwidth
-        pumpPosY_min = int(belthheight)*0.45
-        pumpPosY_max = int(belthheight)*0.50
+        pumpPosY_min = int(belthheight)*0.25
+        pumpPosY_max = int(belthheight)*0.75
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
@@ -230,8 +234,8 @@ while (cap.isOpened()):
         #Copy the belt to be contoured
         beltContoured = belt.copy()
         #Mark line of pump position.
-        cv2.line(beltContoured, (0, int(belthheight*0.45)), (beltwidth, int(belthheight*0.45)), (0, 0, 255), thickness=3)
-        cv2.line(beltContoured, (0, int(belthheight * 0.55)), (beltwidth, int(belthheight * 0.55)), (0, 0, 255),thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight*0.25)), (beltwidth, int(belthheight*0.25)), (0, 0, 255), thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight * 0.75)), (beltwidth, int(belthheight * 0.75)), (0, 0, 255),thickness=3)
         # #Use Canny Edge Detection on the color thresholded belt
         # beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
         # beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
@@ -265,8 +269,9 @@ while (cap.isOpened()):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
-        if blowOff(rects,0,pumpPosY_max) == True:
+        if blowOff(rects,pumpPosY_min,pumpPosY_max) == True:
             print("true")
+            #gpiozero.LED(17).on()
 
         imgStack = stackImages(1, ([belt, imgCannyClose, beltContoured,beltGray]))
         cv2.imshow("Process windows", imgStack)
