@@ -87,9 +87,6 @@ def getContours(imgCanny, imgContoured):
     if len(contours)>0:
         for cnt in contours:
             if cv2.contourArea(cnt) >= minBlackPlasticCntSize:
-                mask = np.zeros(imgCanny.shape, np.uint8)
-                cv2.drawContours(mask, cnt, -1, (255, 255, 0), 3)
-                
                 rect1 = cv2.minAreaRect(cnt)
                 box1 = cv2.boxPoints(rect1)
                 box1 = np.int0(box1)
@@ -185,11 +182,19 @@ cv2.createTrackbar("Sat Max","ColorBars",255,255,empty)
 cv2.createTrackbar("Val Min","ColorBars",0,255,empty)
 cv2.createTrackbar("Val Max","ColorBars",60,255,empty) #Pick 90 as maximum value for black color
 #Read the Video Capture
-while True:
+while (cap.isOpened()):
     success, frame = cap.read()
+    if success == True:
+        key = cv2.waitKey(1)
+        # Click on the corners of the conveyor belt
+        cv2.setMouseCallback("Frame", mousePoints)
+        if key == ord('p'):
+            cv2.waitKey(-1)
+        if key == ord('q'):
+            break
+    else:
+        break
 
-    #Click on the corners of the conveyor belt
-    cv2.setMouseCallback("Frame",mousePoints)
 
     for i in range(0,4):
         cv2.circle(frame,(corners[i][0],corners[i][1]),3,(0,255,0),cv2.FILLED)
