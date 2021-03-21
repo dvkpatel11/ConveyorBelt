@@ -19,43 +19,7 @@ class regObj(object):
     def getY(self):
         return self.centerY
 
-
-def getGrayDiff(img, currentPoint, tmpPoint):
-    return abs(int(img[currentPoint.centerX, currentPoint.centerY]) - int(img[tmpPoint.centerX, tmpPoint.centerY]))
-
-
-def selectConnects(p):
-    if p != 0:
-        connects = [regObj(-1, -1), regObj(0, -1), regObj(1, -1), regObj(1, 0), regObj(1, 1), \
-                    regObj(0, 1), regObj(-1, 1), regObj(-1, 0)]
-    else:
-        connects = [regObj(0, -1), regObj(1, 0), regObj(0, 1), regObj(-1, 0)]
-    return connects
-
-def regionGrow(img, seeds, thresh, p=1):
-    height, weight = img.shape[0:2]
-    seedMark = np.zeros(img.shape)
-    seedList = []
-    for seed in seeds:
-        seedList.append(seed)
-    label = 1
-    connects = selectConnects(p)
-    while (len(seedList) > 0):
-        currentPoint = seedList.pop(0)
-
-        seedMark[currentPoint.centerX, currentPoint.centerY] = label
-        for i in range(8):
-            tmpX = currentPoint.centerX + connects[i].centerX
-            tmpY = currentPoint.centerY + connects[i].centerY
-            if tmpX < 0 or tmpY < 0 or tmpX >= height or tmpY >= weight:
-                continue
-            grayDiff = getGrayDiff(img, currentPoint, regObj(tmpX, tmpY))
-            if grayDiff < thresh and seedMark[tmpX, tmpY] == 0:
-                seedMark[tmpX, tmpY] = label
-                seedList.append(regObj(tmpX, tmpY))
-    return seedMark
-
-corners = np.zeros((4,2),np.int)
+corners = np.zeros((4,2),int)
 counter = 0
 
 #An empty function
@@ -82,7 +46,6 @@ def mousePoints(event,x,y,flags,params):
         #print(corners)
 
 def getContours(imgCanny, imgContoured):
-    large_contour_list = [] #local variable
     contours, hierarchy = cv2.findContours(imgCanny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     if len(contours)>0:
         for cnt in contours:
@@ -91,36 +54,37 @@ def getContours(imgCanny, imgContoured):
                 rect1 = cv2.minAreaRect(cnt)
                 box1 = cv2.boxPoints(rect1)
                 box1 = np.int0(box1)
-                cv2.drawContours(imgContoured, [box1], 0, (0, 0, 255), 2)
-                #Add contour in the list
+                cv2.drawContours(imgContoured, [box1], 0, (0, 2, 0), 2)
+                #Get centroid
                 M_individual = cv2.moments(cnt)
                 centroid_x_individual = int(M_individual['m10'] / M_individual['m00'])
                 centroid_y_individual = int(M_individual['m01'] / M_individual['m00'])
-                #Calculate Centroid
                 cv2.drawContours(imgContoured,cnt,-1,(0,255,0),1)
-                #Approximate bounding box
                 cntPerimeter = cv2.arcLength(cnt,True)
                 approx = cv2.approxPolyDP(cnt,0.02*cntPerimeter,True)
-                #x,y,w,h = cv2.boundingRect(approx)
-                #bounding the detected plastic
-                #cv2.rectangle(imgContoured,(x,y),(x+w,y+h),(0,255,0),1)
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(centroid_x_individual,centroid_y_individual),5,(0,255,0),cv2.FILLED)
                 rects.append(regObj(centroid_x_individual, centroid_y_individual))
-                if len(rects) == 0:
-                    first_cnt = cnt
-                if len(rects) == 1:
-                    second_cnt = cnt
-                if len(rects) > 1:
-                    if ((rects[0].centerX-rects[1].centerX)**2 + (rects[0].centerY-rects[1].centerY)**2)**0.5 < 1000:
-                        large_contour_list.append(first_cnt,second_cnt)
-    if len(large_contour_list) > 0:
+    return contours
+
+def concatCont (rects, contours, imgContoured):
+    large_contour_list = []
+    if ((rects[0].centerX-rects[1].centerX)**2 + (rects[0].centerY-rects[1].centerY)**2)**0.5 < 1500:
+        large_contour_list.append(contours[0])
+        large_contour_list.append(contours[1])
         concat_cnts = np.concatenate(large_contour_list)
+        rect2 = cv2.minAreaRect(concat_cnts)
+        box2 = cv2.boxPoints(rect2)
+        box2 = np.int0(box2)
+        cv2.drawContours(imgContoured, [box2], 0, (255, 0, 0), 2)
         M = cv2.moments(concat_cnts)
         centroid_x = int(M['m10'] / M['m00'])
         centroid_y = int(M['m01'] / M['m00'])
-        #rects.append(regObj(centroid_x,centroid_y))
-        cv2.drawContours(imgContoured,concat_cnts,-1,(255,0,0),thickness=3)
+        cv2.circle(imgContoured,(centroid_x,centroid_y),5,(255,0,0),cv2.FILLED)
+        rects.pop(0)
+        rects.pop(0)
+        rects.insert(0,regObj(centroid_x,centroid_y))
+
 #Check method to verify if an object center has reached the pump
 def blowOff(rects, pumpPosY_min, pumpPosY_max):
     signalToPump = False
@@ -180,7 +144,8 @@ def stackImages(scale,imgArray):
     return ver
 
 #Video Capture
-cap = cv2.VideoCapture("belt2.mp4")
+cap = cv2.VideoCapture("capstone.mp4")
+#cap = cv2.VideoCapture(0)
 #Set the frame window dimensions
 cap.set(3,640)
 cap.set(4,480)
@@ -219,7 +184,7 @@ while (cap.isOpened()):
         belthheight = np.float32(corners[2][1]-corners[0][1])
         #Setting Pump position to be 0.75 *beltwidth
         pumpPosY_min = int(belthheight)*0.45
-        pumpPosY_max = int(belthheight)*0.50
+        pumpPosY_max = int(belthheight)*0.55
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
@@ -243,30 +208,14 @@ while (cap.isOpened()):
         #Mark line of pump position.
         cv2.line(beltContoured, (0, int(belthheight*0.45)), (beltwidth, int(belthheight*0.45)), (0, 0, 255), thickness=3)
         cv2.line(beltContoured, (0, int(belthheight * 0.55)), (beltwidth, int(belthheight * 0.55)), (0, 0, 255),thickness=3)
-        # #Use Canny Edge Detection on the color thresholded belt
-        # beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
-        # beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
-        # v = np.median(beltDetectGray)
-        # sigma = 0.33
-        # # ---- apply optimal Canny edge detection using the computed median----
-        # lower_thresh = int(max(0, (1.0 - sigma) * v))
-        # upper_thresh = int(min(255, (1.0 + sigma) * v))
-        # beltDetectCanny = cv2.Canny(beltDetectGray,lower_thresh,upper_thresh)
-        # #Do a second layer of processing
-        # #beltDetectBlur = cv2.GaussianBlur(beltDetectCanny, (3, 3), 1)
-        # beltDetectBlur = cv2.bilateralFilter(beltDetectCanny, 3, 3, 3)
-        # # Remove small noise bits in image by dilating and eroding
-        # kernel = np.ones((5, 5))
-        # imgCannyClose = cv2.morphologyEx(beltDetectBlur, cv2.MORPH_CLOSE, kernel)
-        # #List of detected bounding rectangles
         imgCannyClose = cannyClose(blackPlasticDetect)
         rects = []
         #Get valid contours from canny detected image and display them
-        getContours(imgCannyClose,beltContoured)
+        contours = getContours(imgCannyClose,beltContoured)
+        if len(rects)>1:
+            concatCont(rects,contours, beltContoured)
         #Keep track of detected contours and store as objects
         objects = ct.update(rects)
-        #Region growing
-
         #Print object ID and centroid. Obtained from piImageSearch source codde.
         for (objectID, centroid) in objects.items():
             # draw both the ID of the object and the centroid of the
@@ -276,8 +225,8 @@ while (cap.isOpened()):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
         #sets a serial signal to True when a black object has reached the line of action of the pump
-        if blowOff(rects,pumpPosY_min,pumpPosY_max) == True:
-            print("true")
+        #if blowOff(rects,pumpPosY_min,pumpPosY_max) == True:
+            #print("true")
 
         imgStack = stackImages(1, ([belt, imgCannyClose, beltContoured,beltGray]))
         cv2.imshow("Process windows", imgStack)
