@@ -108,12 +108,8 @@ def getContours(imgCanny, imgContoured):
                 #Center of the detected plastic
                 cv2.circle(imgContoured,(centroid_x1,centroid_y1),5,(0,255,0),cv2.FILLED)
                 rects.append(regObj((centroid_x1), (centroid_y1)))
-    if len(large_contour_list) > 0:
-        concat_cnts = np.concatenate(large_contour_list)
-        M = cv2.moments(concat_cnts)
-        centroid_x = int(M['m10'] / M['m00'])
-        centroid_y = int(M['m01'] / M['m00'])
-        #rects.append(regObj(centroid_x,centroid_y))
+    if len(large_contour_list) >= 2:
+
 #Check method to verify if an object center has reached the pump
 def blowOff(rects, pumpPosY_min, pumpPosY_max):
     signalToPump = False
