@@ -109,7 +109,7 @@ def getContours(imgCanny, imgContoured):
                 cv2.circle(imgContoured,(centroid_x1,centroid_y1),5,(0,255,0),cv2.FILLED)
                 rects.append(regObj((centroid_x1), (centroid_y1)))
     if len(large_contour_list) >= 2:
-        if ((rects[0].centerX - rects[1].centerX)**2+(rects[0].centerY - rects[1].centerY)**2)**0.5 < 5000:
+        if ((rects[0].centerX - rects[1].centerX)**2+(rects[0].centerY - rects[1].centerY)**2)**0.5 < 50:
             concat_cnts = np.concatenate(large_contour_list[0:2])
             rect = cv2.minAreaRect(concat_cnts)
             box = cv2.boxPoints(rect)
@@ -205,14 +205,19 @@ while (cap.isOpened()):
         key = cv2.waitKey(3)
         # Click on the corners of the conveyor belt
         cv2.setMouseCallback("Frame", mousePoints)
+        for i in range(0, 4):
+            cv2.circle(frame, (corners[i][0], corners[i][1]), 3, (0, 255, 0), cv2.FILLED)
         if key == ord('p'):
             cv2.waitKey(-1)
+            cv2.setMouseCallback("Frame", mousePoints)
+            for i in range(0, 4):
+                cv2.circle(frame, (corners[i][0], corners[i][1]), 3, (0, 255, 0), cv2.FILLED)
         if key == ord('q'):
             break
     else:
         break
-    for i in range(0,4):
-        cv2.circle(frame,(corners[i][0],corners[i][1]),3,(0,255,0),cv2.FILLED)
+    # for i in range(0,4):
+    #     cv2.circle(frame,(corners[i][0],corners[i][1]),3,(0,255,0),cv2.FILLED)
     #When 4 corners are selected
     if counter == 4:
         pts1 = np.float32([corners[0],corners[1],corners[2],corners[3]])
