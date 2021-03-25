@@ -9,10 +9,10 @@ from time import sleep
 
 #Global Var
 #Blow off when the centroid is between minY and maxY of the conveyor belt
-minY = 0.25
-maxY = 0.75
+# minY = 0.25
+# maxY = 0.75
 #Maximum distance of 2 black parts of an object with different color label
-maxBlackDis = 1500
+maxBlackDis = 50
 
 #Class to create detected objects and their centroids.
 class regObj(object):
@@ -73,6 +73,13 @@ def empty(var):
 ct = CentroidTracker()
 
 #Countour Area Track Bar
+#Color Bars
+cv2.namedWindow("BeltSection")
+cv2.resizeWindow("BeltSection",640,240)
+cv2.createTrackbar("Y Min","BeltSection",0,100,empty)
+cv2.createTrackbar("Y Max","BeltSection",0,100,empty)
+
+#Air Compressor Centroid Alignment
 cv2.namedWindow("CountourSize")
 cv2.resizeWindow("CountourSize",320,120)
 cv2.createTrackbar("Min Area","CountourSize",1500,30000,empty) #these values can be modified
@@ -231,9 +238,12 @@ while (cap.isOpened()):
         #Make sure to follow the pattern
         beltwidth = np.float32(corners[2][0]-corners[0][0])
         belthheight = np.float32(corners[2][1]-corners[0][1])
+        #minY maxY
+        minY = cv2.getTrackbarPos("Y Min","BeltSection")
+        maxY = cv2.getTrackbarPos("Y Max","BeltSection")
         #Setting Pump position to be 0.75 *beltwidth
-        pumpPosY_min = int(belthheight)*minY
-        pumpPosY_max = int(belthheight)*maxY
+        pumpPosY_min = int(belthheight)*minY/100
+        pumpPosY_max = int(belthheight)*maxY/100
         pts2 = np.float32([[0,0],[beltwidth,0],[beltwidth,belthheight],[0,belthheight]])
         mtrx = cv2.getPerspectiveTransform(pts1,pts2)
         belt = cv2.warpPerspective(frame,mtrx,(beltwidth,belthheight))
@@ -255,8 +265,8 @@ while (cap.isOpened()):
         #Copy the belt to be contoured
         beltContoured = belt.copy()
         #Mark line of pump position.
-        cv2.line(beltContoured, (0, int(belthheight*minY)), (beltwidth, int(belthheight*minY)), (0, 0, 255), thickness=3)
-        cv2.line(beltContoured, (0, int(belthheight*maxY)), (beltwidth, int(belthheight*maxY)), (0, 0, 255),thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight*minY/100)), (beltwidth, int(belthheight*minY/100)), (0, 0, 255), thickness=3)
+        cv2.line(beltContoured, (0, int(belthheight*maxY/100)), (beltwidth, int(belthheight*maxY/100)), (0, 0, 255),thickness=3)
         # #Use Canny Edge Detection on the color thresholded belt
         # beltBilateralFiltered = cv2.bilateralFilter(blackPlasticDetect, 3, 3, 3)
         # beltDetectGray = cv2.cvtColor(beltBilateralFiltered, cv2.COLOR_BGR2GRAY)
